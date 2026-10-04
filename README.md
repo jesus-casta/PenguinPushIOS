@@ -11,6 +11,12 @@ Proyecto Xcode para iPhone y iPad (iOS 15+). Incluye **50 mapas clásicos de Sok
 
 No necesitas CocoaPods, Swift Package Manager ni una conexión a un servidor para jugar. Los recursos están incluidos en la aplicación.
 
+## Experiencia móvil
+
+Al abrir se elige pingüino o pingüina. El tablero adapta su tamaño a la pantalla, con personajes más grandes y saltitos al caminar. Desliza o arrastra el dedo para dar varios pasos; también puedes mantener pulsadas las flechas. Deshacer está siempre a mano y el botón Ajustes reúne personajes, niveles, ambiente y volumen. El zoom permite explorar los mapas grandes arrastrando el tablero. Se respeta la preferencia de reducir movimiento.
+
+El diseño del juego compartido sirve para pantallas de iOS y Android; este repositorio incluye únicamente el contenedor nativo iOS.
+
 ## Arquitectura
 
 La aplicación usa SwiftUI y un contenedor **WKWebView** para el juego HTML/Canvas compartido. La lógica y las animaciones se ejecutan en ese motor; no es una reimplementación nativa del tablero en Swift. Esto mantiene idénticos los mapas y las reglas en las tres versiones.

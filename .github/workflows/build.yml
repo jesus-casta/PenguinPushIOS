@@ -11,4 +11,5 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/check-bundle.cjs
+      - run: scripts/check-native.sh
       - run: xcodebuild -project PenguinPush.xcodeproj -scheme PenguinPush -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

@@ -1,5 +1,4 @@
-/* Source collections documented in ORIGINAL_LEVELS.md. */
-(function(root){const packs=[
+[
   {
     "id": "boxxle1",
     "name": "Boxxle I",
@@ -3334,4 +3333,4 @@
       }
     ]
   }
-];if(typeof module!=="undefined"&&module.exports)module.exports=packs;else root.PENGUIN_PACKS=packs;})(typeof globalThis!=="undefined"?globalThis:this);
+]

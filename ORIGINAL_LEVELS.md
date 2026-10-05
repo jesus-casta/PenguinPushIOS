@@ -9,3 +9,7 @@ El fichero fuente se conserva en `PenguinPushHTML/data/original-levels.txt`. La 
 Los mapas clásicos mantienen la autoría y los derechos de su colección original. No se presentan como niveles creados para PenguinPush ni se les asigna una licencia propia.
 
 Los 12 niveles de aprendizaje, los efectos sonoros sintetizados y el código de PenguinPush son nuevos. Los personajes se adaptaron de las dos imágenes de pingüinos aportadas por Jesús Castañón, eliminando los libros y conservando las bufandas azul/rosa y el lazo.
+
+## Boxxle I
+
+La colección predeterminada contiene los 108 mapas de «Boxxle 1», atribuidos a Thinking Rabbit en el archivo SLC. Fuente: [Sourcecode.se](https://sourcecode.se/sokoban/levels.php), [archivo de colecciones](https://sourcecode.se/sokoban/download/Levels.zip), entrada `Boxxle1.slc`. La copia fuente se conserva en `data/Boxxle1.slc`; se mantienen sus filas y su orden. No se atribuye a PenguinPush la autoría ni una licencia sobre estos mapas. SHA-256 de la fuente: `ee07bcfd1589b3aefc5268d7ae1c47b86a46cc1eeb33a46445bdfb28f78b84e4`.

@@ -10,6 +10,7 @@ struct PenguinPushApp: App {
     var body: some Scene {
         WindowGroup {
             GameView()
+                .statusBarHidden(true)
                 .background(Color(red: 0.918, green: 0.957, blue: 0.973))
         }
     }

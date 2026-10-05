@@ -28,6 +28,15 @@ class Sokoban {
  }
  undo(){const s=this.history.pop();if(!s)return false;Object.assign(this,s,{boxes:new Set(s.boxes)});return true;}
  get cornerBlocked(){return [...this.boxes].some(k=>{if(this.goals.has(k))return false;const[x,y]=k.split(',').map(Number),wall=(dx,dy)=>!this.floor.has(key(x+dx,y+dy));return(wall(1,0)||wall(-1,0))&&(wall(0,1)||wall(0,-1));});}
+ restore(saved){
+  if(!saved||!Array.isArray(saved.history)||saved.history.length>100000)return false;
+  const candidate=new Sokoban(this.level), states=[...saved.history,saved];
+  try{for(let i=0;i<states.length;i++){const expected=states[i],actual=candidate.snapshot();
+   if(JSON.stringify(actual.player)!==JSON.stringify(expected.player)||JSON.stringify(actual.boxes)!==JSON.stringify([...expected.boxes].sort())||actual.moves!==expected.moves||actual.pushes!==expected.pushes) return false;
+   if(i+1<states.length){const next=states[i+1],event=candidate.move(next.player[0]-actual.player[0],next.player[1]-actual.player[1]);if(!["step","push"].includes(event.type))return false;}
+  }}catch{return false;}
+  Object.assign(this,candidate);this.direction=Number.isInteger(saved.direction)&&saved.direction>=0&&saved.direction<4?saved.direction:0;return true;
+ }
  snapshot(){return{player:[...this.player],boxes:[...this.boxes].sort(),moves:this.moves,pushes:this.pushes,direction:this.direction};}
 }
 if(typeof module!=='undefined'&&module.exports)module.exports=Sokoban;else root.PenguinSokoban=Sokoban;

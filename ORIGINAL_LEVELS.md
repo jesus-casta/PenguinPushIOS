@@ -1,5 +1,13 @@
 # Créditos y procedencia de los niveles
 
+## Aventura activa: El primer viaje
+
+La aplicación incluye únicamente ocho habitaciones propias de PenguinPush, conservadas en `data/adventure.json`. Se adaptan de los tutoriales propios 1, 2, 3, 4, 6, 7, 8 y 11, ampliando el espacio transitable a 14 filas y añadiendo nombres, pistas y dificultad. Las soluciones verificadas están en `data/adventure-solutions.json`. No son mapas de Boxxle ni de Thinking Rabbit.
+
+Las colecciones siguientes se conservan como referencia histórica para pruebas; no forman parte del paquete nativo actual.
+
+## Colecciones históricas
+
 La colección **Sokoban clásico** contiene los 50 mapas de la colección «Original», atribuidos a **Thinking Rabbit**. Se conservan las filas, las paredes, los espacios, las cajas, las metas, el jugador y el orden de la colección. Solo cambia su presentación: cajas de pescado y pingüinos.
 
 Fuente de los datos: [lieberkind/sokoban, original-levels.txt](https://github.com/lieberkind/sokoban/blob/elm/original-levels.txt), blob Git `bee6c04bb6875b87d341e26a1837bae2a3f011ca`. El fichero acredita a Thinking Rabbit y a «Sokoban. The beautiful world of remodels» como procedencia. La fecha indicada por el fichero es 1988; se mantiene como metadato de esa copia, no como afirmación sobre la fecha de creación de cada puzle.

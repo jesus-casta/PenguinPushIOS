@@ -8,6 +8,10 @@ final class PenguinScene: SKScene {
     private let boardNode = SKNode()
     private let decorations = SKNode()
     private let player = SKSpriteNode()
+    private let actor = SKNode()
+    private let shadow = SKShapeNode(ellipseOf: CGSize(width: 35, height: 9))
+    private var manualCamera = false
+    private var stepSide: CGFloat = 1
     private var boxNodes: [GridPoint: SKNode] = [:]
     private var textures: [[SKTexture]] = []
     private var cell: CGFloat = 64
@@ -15,6 +19,9 @@ final class PenguinScene: SKScene {
     private var zoom: CGFloat = 1
     private var pan = CGPoint.zero
     private var touchStart: CGPoint?
+    private var touchOrigin: CGPoint?
+    private var gestureMoved = false
+    private let destinationMarker = SKShapeNode(rectOf: CGSize(width: 54, height: 54), cornerRadius: 10)
     private var touchID: UITouch?
     private var usable = CGRect.zero
 
@@ -41,13 +48,12 @@ final class PenguinScene: SKScene {
 
     func rebuild() {
         boardNode.removeAllActions(); boardNode.removeAllChildren(); boxNodes.removeAll()
-        zoom = 1; pan = .zero
+        zoom = 1; pan = .zero; manualCamera = false
         guard let board = model?.board else { return }
         let night = model?.theme == "night", wood = model?.theme == "wood"
-        let floorColor = night ? UIColor(hex: 0x789db8) : wood ? UIColor(hex: 0xe8d3b3) : UIColor(hex: 0xdaedf2)
-        let wallColor = night ? UIColor(hex: 0x567d9d) : wood ? UIColor(hex: 0xa98463) : UIColor(hex: 0xa5cfe1)
+        let floorColor = night ? UIColor(hex: 0x789db8) : wood ? UIColor(hex: 0xe8d3b3) : UIColor(hex: 0xedf6f8)
         for p in board.floor {
-            let tile = rounded(size: CGSize(width: cell - 1, height: cell - 1), color: floorColor, stroke: floorColor.darker)
+            let tile = rounded(size: CGSize(width: cell - 1, height: cell - 1), color: floorColor, stroke: UIColor(hex: 0xb7d2dc).withAlphaComponent(0.35))
             tile.position = position(p); boardNode.addChild(tile)
             if board.goals.contains(p) {
                 let goal = SKShapeNode(circleOfRadius: cell * 0.29)
@@ -57,19 +63,23 @@ final class PenguinScene: SKScene {
             }
         }
         for p in board.walls {
-            let wall = rounded(size: CGSize(width: cell - 1, height: cell - 1), color: wallColor, stroke: wallColor.darker)
-            wall.position = position(p); wall.zPosition = 3
-            let cap = rounded(size: CGSize(width: cell - 5, height: 10), color: wallColor.lighter, stroke: .clear)
-            cap.position.y = 23; wall.addChild(cap); boardNode.addChild(wall)
+            let igloo = makeIgloo()
+            igloo.position = position(p); igloo.zPosition = 3; boardNode.addChild(igloo)
         }
         for p in board.state.boxes {
             let node = makeBox(delivered: board.goals.contains(p)); node.position = position(p)
             boardNode.addChild(node); boxNodes[p] = node
         }
-        player.removeAllActions(); player.removeFromParent()
+        actor.removeAllActions(); actor.removeFromParent(); actor.removeAllChildren()
+        player.removeAllActions(); player.removeFromParent(); player.position = .zero
+        player.setScale(1); player.zRotation = 0
         player.size = CGSize(width: cell * 1.13, height: cell * 1.13)
-        player.position = position(board.state.player); player.zPosition = 10
-        face(board.state.direction); boardNode.addChild(player)
+        player.zPosition = 2
+        shadow.fillColor = UIColor(hex: 0x214454).withAlphaComponent(0.22); shadow.strokeColor = .clear
+        shadow.position = CGPoint(x: 0, y: -27); shadow.zPosition = 0; shadow.setScale(1)
+        actor.position = position(board.state.player); actor.zPosition = 10
+        actor.addChild(shadow); actor.addChild(player)
+        face(board.state.direction); boardNode.addChild(actor)
         layoutBoard(); scenery()
     }
 
@@ -83,72 +93,142 @@ final class PenguinScene: SKScene {
     }
     func animate(_ event: BoardMove, completion: @escaping () -> Void) {
         face(event.direction)
-        let duration: TimeInterval = UIAccessibility.isReduceMotionEnabled ? 0 : event.boxTo == nil ? 0.07 : 0.09
+        let pushing = event.boxTo != nil
+        let duration: TimeInterval = UIAccessibility.isReduceMotionEnabled ? 0 : pushing ? 0.12 : 0.10
         if let from = event.boxFrom, let to = event.boxTo, let box = boxNodes.removeValue(forKey: from) {
             boxNodes[to] = box
+            if !event.delivered { colorBox(box, delivered: false) }
             let move = SKAction.move(to: position(to), duration: duration); move.timingMode = .easeInEaseOut
             box.run(move) { [weak self, weak box] in
                 guard let self = self, let box = box else { return }
-                if event.delivered { self.colorBox(box, delivered: true) }
+                self.colorBox(box, delivered: event.delivered)
+                if event.delivered && duration > 0 {
+                    box.run(.sequence([.scale(to: 1.12, duration: 0.07), .scale(to: 1, duration: 0.10)]))
+                }
             }
-            colorBox(box, delivered: event.delivered)
         }
-        let move = SKAction.move(to: position(event.to), duration: duration); move.timingMode = .easeInEaseOut
-        player.run(move, completion: completion)
-        if duration > 0 {
-            player.run(.sequence([.rotate(toAngle: 0.05, duration: duration / 2), .rotate(toAngle: 0, duration: duration / 2)]))
+        let move = SKAction.move(to: position(event.to), duration: duration)
+        move.timingMode = pushing ? .easeInEaseOut : .linear
+        stepSide *= -1
+        let side = stepSide
+        let gait = SKAction.customAction(withDuration: duration) { [weak self] _, elapsed in
+            guard let self = self, duration > 0 else { return }
+            let phase = min(1, CGFloat(elapsed) / CGFloat(duration)), lift = sin(phase * .pi)
+            self.player.position = CGPoint(x: pushing ? CGFloat(event.direction.dx) * lift * 3 : 0, y: pushing ? lift * 2 : lift * 7)
+            self.player.zRotation = (pushing ? -CGFloat(event.direction.dx) * 0.09 : side * 0.07) * lift
+            self.player.xScale = 1 + lift * (pushing ? 0.05 : 0.025)
+            self.player.yScale = 1 - lift * (pushing ? 0.06 : 0.025)
+            self.shadow.xScale = 1 - lift * 0.15
         }
+        actor.run(.group([move, gait])) { [weak self] in
+            self?.player.position = .zero; self?.player.zRotation = 0; self?.player.setScale(1); self?.shadow.setScale(1)
+            completion()
+        }
+        if duration > 0 && !pushing {
+            let print = SKShapeNode(ellipseOf: CGSize(width: 7, height: 3))
+            print.fillColor = UIColor(hex: 0x6d9dad).withAlphaComponent(0.3); print.strokeColor = .clear
+            print.position = CGPoint(x: position(event.from).x + side * 8, y: position(event.from).y - 25)
+            print.zPosition = 2; boardNode.addChild(print)
+            print.run(.sequence([.fadeOut(withDuration: 0.45), .removeFromParent()]))
+        }
+        if !manualCamera { follow(event.to, duration: duration) }
     }
     func cancelAnimation() {
-        touchStart = nil; touchID = nil
-        player.removeAllActions(); player.zRotation = 0
+        touchStart = nil; touchOrigin = nil; touchID = nil
+        actor.removeAllActions(); player.removeAllActions(); player.zRotation = 0; player.position = .zero; player.setScale(1); shadow.setScale(1)
         guard let board = model?.board else { return }
-        player.position = position(board.state.player); face(board.state.direction)
-        for (p, node) in boxNodes { node.removeAllActions(); node.position = position(p); colorBox(node, delivered: board.goals.contains(p)) }
+        actor.position = position(board.state.player); face(board.state.direction)
+        if !manualCamera { follow(board.state.player, duration: 0) }
+        for (p, node) in boxNodes { node.removeAllActions(); node.setScale(1); node.position = position(p); colorBox(node, delivered: board.goals.contains(p)) }
     }
 
     func layoutBoard() {
         guard let board = model?.board, size.width > 0, size.height > 0 else { return }
-        let landscape = size.width > size.height
-        let left = safeInsets.left + (landscape ? 200 : 12), right = safeInsets.right + (landscape ? 176 : 12)
-        let top = safeInsets.top + (landscape ? 12 : 82), bottom = safeInsets.bottom + (landscape ? 12 : 174)
-        usable = CGRect(x: left, y: bottom, width: max(50, size.width - left - right), height: max(50, size.height - top - bottom))
-        fitScale = min(usable.width / (CGFloat(board.width) * cell), usable.height / (CGFloat(board.height) * cell))
-        applyTransform()
+        usable = CGRect(origin: .zero, size: size)
+        // Controls float over the world; no strip of the display is reserved for them.
+        fitScale = max(size.width / (CGFloat(board.width) * cell), size.height / (CGFloat(board.height) * cell))
+        if !manualCamera { follow(board.state.player, duration: 0) } else { applyTransform() }
+    }
+    private var overviewFactor: CGFloat {
+        guard let board = model?.board, fitScale > 0 else { return 1 }
+        return min(size.width / (CGFloat(board.width) * cell), size.height / (CGFloat(board.height) * cell)) / fitScale
     }
     func magnify(by factor: CGFloat) {
         guard inputEnabled else { return }
-        zoom = min(3, max(1, zoom * factor)); if zoom == 1 { pan = .zero }
-        applyTransform()
+        manualCamera = true
+        zoom = min(3, max(overviewFactor, zoom * factor)); applyTransform()
     }
-    var isZoomed: Bool { zoom > 1.01 }
-    private func applyTransform() {
+    var isZoomed: Bool { manualCamera && zoom > overviewFactor + 0.01 }
+    private func applyTransform(duration: TimeInterval = 0) {
         guard let board = model?.board else { return }
         let scale = fitScale * zoom, w = CGFloat(board.width) * cell * scale, h = CGFloat(board.height) * cell * scale
         let limitX = max(0, (w - usable.width) / 2), limitY = max(0, (h - usable.height) / 2)
         pan.x = min(limitX, max(-limitX, pan.x)); pan.y = min(limitY, max(-limitY, pan.y))
         boardNode.setScale(scale)
-        boardNode.position = CGPoint(x: usable.midX - w / 2 + pan.x, y: usable.midY - h / 2 + pan.y)
+        let target = CGPoint(x: usable.midX - w / 2 + pan.x, y: usable.midY - h / 2 + pan.y)
+        boardNode.removeAction(forKey: "camera")
+        if duration > 0 { boardNode.run(.move(to: target, duration: duration), withKey: "camera") }
+        else { boardNode.position = target }
     }
-    func resetZoom() { zoom = 1; pan = .zero; applyTransform() }
+    private func follow(_ point: GridPoint, duration: TimeInterval) {
+        guard let board = model?.board else { return }
+        let scale = fitScale * zoom, center = position(point)
+        pan = CGPoint(x: (CGFloat(board.width) * cell / 2 - center.x) * scale,
+                      y: (CGFloat(board.height) * cell / 2 - center.y) * scale)
+        applyTransform(duration: UIAccessibility.isReduceMotionEnabled ? 0 : duration)
+    }
+    func overview() { manualCamera = true; zoom = overviewFactor; pan = .zero; applyTransform() }
+    func resetZoom() { zoom = 1; manualCamera = false; if let p = model?.board?.state.player { follow(p, duration: 0) } }
+    func panBoard(by offset: CGPoint) {
+        guard inputEnabled else { return }
+        manualCamera = true; pan.x += offset.x; pan.y -= offset.y; applyTransform()
+    }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard inputEnabled, touchID == nil, touches.count == 1, let touch = touches.first else { touchStart = nil; touchID = nil; return }
-        touchID = touch; touchStart = touch.location(in: self)
+        guard inputEnabled, touchID == nil, touches.count == 1, let touch = touches.first else { touchStart = nil; touchOrigin = nil; touchID = nil; return }
+        touchID = touch; touchStart = touch.location(in: self); touchOrigin = touchStart; gestureMoved = false
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { track(touches) }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        track(touches); touchStart = nil; touchID = nil
+        track(touches)
+        if inputEnabled, !gestureMoved, let touch = touchID, touches.contains(touch), let origin = touchOrigin {
+            let point = touch.location(in: self)
+            if hypot(point.x - origin.x, point.y - origin.y) < 12 { tapCell(at: point) }
+        }
+        touchStart = nil; touchOrigin = nil; touchID = nil
     }
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { touchStart = nil; touchID = nil }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { touchStart = nil; touchOrigin = nil; touchID = nil }
     private func track(_ touches: Set<UITouch>) {
         guard inputEnabled, let touch = touchID, touches.contains(touch), let start = touchStart else { return }
         let point = touch.location(in: self), dx = point.x - start.x, dy = point.y - start.y
-        if isZoomed { pan.x += dx; pan.y += dy; applyTransform(); touchStart = point }
+        if isZoomed {
+            if let origin = touchOrigin, hypot(point.x - origin.x, point.y - origin.y) >= 12 { gestureMoved = true }
+            pan.x += dx; pan.y += dy; applyTransform(); touchStart = point }
         else if max(abs(dx), abs(dy)) >= 24 {
+            gestureMoved = true
             model?.move(abs(dx) > abs(dy) ? (dx > 0 ? .right : .left) : (dy > 0 ? .up : .down))
             touchStart = point
         }
+    }
+
+    private func tapCell(at scenePoint: CGPoint) {
+        guard let board = model?.board else { return }
+        let local = boardNode.convert(scenePoint, from: self)
+        let x = Int(floor(local.x / cell)), y = board.height - 1 - Int(floor(local.y / cell))
+        guard x >= 0, x < board.width, y >= 0, y < board.height else { return }
+        model?.walk(to: GridPoint(x: x, y: y))
+    }
+    func markDestination(_ point: GridPoint, reachable: Bool) {
+        clearDestination()
+        destinationMarker.position = position(point); destinationMarker.zPosition = 4
+        destinationMarker.lineWidth = 2.5
+        destinationMarker.strokeColor = UIColor(hex: reachable ? 0x259c99 : 0xd2766b)
+        destinationMarker.fillColor = destinationMarker.strokeColor.withAlphaComponent(0.12)
+        boardNode.addChild(destinationMarker)
+        if !reachable { destinationMarker.run(.sequence([.wait(forDuration: 0.35), .fadeOut(withDuration: 0.15), .removeFromParent()])) }
+    }
+    func clearDestination() {
+        destinationMarker.removeAllActions(); destinationMarker.removeFromParent(); destinationMarker.alpha = 1
     }
 
     func celebrate() {
@@ -172,6 +252,42 @@ final class PenguinScene: SKScene {
         let sun = SKShapeNode(circleOfRadius: 24); sun.fillColor = UIColor(hex: 0xfff1c0); sun.strokeColor = .clear
         sun.position = CGPoint(x: size.width * 0.83, y: size.height * 0.85); decorations.addChild(sun)
     }
+    private func makeIgloo() -> SKNode {
+        let node = SKNode()
+        let base = SKShapeNode(ellipseOf: CGSize(width: 58, height: 12))
+        base.fillColor = UIColor(hex: 0x719dad).withAlphaComponent(0.2); base.strokeColor = .clear
+        base.position.y = -24; node.addChild(base)
+        let outline = CGMutablePath()
+        outline.move(to: CGPoint(x: -29, y: -22)); outline.addLine(to: CGPoint(x: 29, y: -22))
+        outline.addLine(to: CGPoint(x: 29, y: -7))
+        outline.addArc(center: CGPoint(x: 0, y: -7), radius: 29, startAngle: 0, endAngle: .pi, clockwise: false)
+        outline.closeSubpath()
+        let dome = SKShapeNode(path: outline)
+        dome.fillColor = UIColor(hex: 0xf9fdff); dome.strokeColor = UIColor(hex: 0x91b8c8); dome.lineWidth = 1.2
+        node.addChild(dome)
+        let seams = CGMutablePath()
+        for y in [CGFloat(-10), 0, 10] {
+            let half = y < -7 ? CGFloat(28) : sqrt(29 * 29 - (y + 7) * (y + 7))
+            seams.move(to: CGPoint(x: -half, y: y)); seams.addLine(to: CGPoint(x: half, y: y))
+        }
+        let joints: [(CGFloat, CGFloat)] = [(-14, -18), (7, -18), (0, -7), (-14, 3), (14, 3), (0, 13)]
+        for (x, y) in joints {
+            seams.move(to: CGPoint(x: x, y: y)); seams.addLine(to: CGPoint(x: x, y: y + 7))
+        }
+        let bricks = SKShapeNode(path: seams); bricks.strokeColor = UIColor(hex: 0xb6d5df); bricks.lineWidth = 1
+        node.addChild(bricks)
+        let tunnel = SKShapeNode(rectOf: CGSize(width: 25, height: 25), cornerRadius: 11)
+        tunnel.fillColor = .white; tunnel.strokeColor = UIColor(hex: 0x91b8c8); tunnel.lineWidth = 1.2
+        tunnel.position = CGPoint(x: 9, y: -16); node.addChild(tunnel)
+        let door = SKShapeNode(rectOf: CGSize(width: 15, height: 19), cornerRadius: 7)
+        door.fillColor = UIColor(hex: 0x648c9e); door.strokeColor = UIColor(hex: 0x416c81); door.lineWidth = 1
+        door.position = CGPoint(x: 9, y: -19); node.addChild(door)
+        let drift = SKShapeNode(ellipseOf: CGSize(width: 22, height: 5))
+        drift.fillColor = UIColor(hex: 0xe7f3f8); drift.strokeColor = .clear
+        drift.position = CGPoint(x: -14, y: -23); node.addChild(drift)
+        return node
+    }
+
     private func rounded(size: CGSize, color: UIColor, stroke: UIColor) -> SKShapeNode {
         let node = SKShapeNode(rectOf: size, cornerRadius: 4); node.fillColor = color; node.strokeColor = stroke; node.lineWidth = 1
         return node

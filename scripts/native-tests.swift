@@ -2,13 +2,37 @@ import Foundation
 import SQLite3
 
 struct TestStep: Decodable { let undo: Bool; let direction: MoveDirection; let state: BoardSnapshot }
-struct TestFixture: Decodable { let level: GameLevel; let steps: [TestStep] }
+struct TestFixture: Decodable { let level: GameLevel; let steps: [TestStep]; let solution: String?; let optimalPushes: Int? }
 
 @main struct NativeTests {
     static func main() throws {
         let fixtures = try JSONDecoder().decode([TestFixture].self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
+        var walker = try SokobanBoard(level: GameLevel(id: "walk", name: "walk", author: "test",
+            map: ["#######", "#@ $ .#", "#     #", "#######"]))
+        precondition(walker.walkingPath(to: walker.state.player) == [])
+        precondition(walker.walkingPath(to: GridPoint(x: 3, y: 1)) == nil)
+        precondition(walker.walkingPath(to: GridPoint(x: -1, y: 1)) == nil)
+        let boxesBefore = walker.state.boxes
+        let route = walker.walkingPath(to: GridPoint(x: 5, y: 1))!
+        precondition(route.count == 6, "Must take the shortest detour around the box")
+        for direction in route { precondition(walker.move(direction)?.boxFrom == nil) }
+        precondition(walker.state.boxes == boxesBefore && walker.state.pushes == 0)
+        var resumedWalker = try SokobanBoard(level: walker.level)
+        precondition(resumedWalker.restore(walker.session) && resumedWalker.state == walker.state)
+        precondition(resumedWalker.undo() && resumedWalker.state.moves == 5)
+        let isolated = try SokobanBoard(level: GameLevel(id: "isolated", name: "isolated", author: "test",
+            map: ["#######", "#@ $ .#", "#######"]))
+        precondition(isolated.walkingPath(to: GridPoint(x: 5, y: 1)) == nil)
         var steps = 0
         for fixture in fixtures {
+            if let solution = fixture.solution {
+                var solved = try SokobanBoard(level: fixture.level)
+                for letter in solution.uppercased() {
+                    let direction: MoveDirection = letter == "D" ? .down : letter == "L" ? .left : letter == "R" ? .right : .up
+                    precondition(solved.move(direction) != nil)
+                }
+                precondition(solved.won && solved.state.pushes == fixture.optimalPushes, "Unsolvable adventure stage")
+            }
             var board = try SokobanBoard(level: fixture.level)
             for step in fixture.steps {
                 if step.undo { board.undo() } else { _ = board.move(step.direction) }
@@ -39,6 +63,8 @@ struct TestFixture: Decodable { let level: GameLevel; let steps: [TestStep] }
         let saved = SavedGame(packID: "test", levelIndex: 0, character: 1, theme: "night", sound: true, volume: 0.2,
                               completed: [level.id: LevelRecord(moves: 1, pushes: 1)], session: game.session)
         try store.write(saved)
+        try store.archivePreviousCampaign()
+        precondition(FileManager.default.fileExists(atPath: dir.appendingPathComponent("session-before-adventure.json").path))
         let reloaded = GameStore(url: store.url).read()!
         precondition(initial.restore(reloaded.session) && initial.won)
         precondition(reloaded.character == 1 && reloaded.theme == "night" && reloaded.completed[level.id]?.moves == 1)

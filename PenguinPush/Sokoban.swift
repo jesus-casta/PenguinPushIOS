@@ -20,6 +20,9 @@ struct GameLevel: Codable {
     let name: String
     let author: String
     let map: [String]
+    var hint: String? = nil
+    var difficulty: String? = nil
+    var chapter: String? = nil
 }
 struct LevelPack: Codable {
     let id: String
@@ -110,6 +113,33 @@ struct SokobanBoard {
             !goals.contains(p) && (!floor.contains(p.offset(.left)) || !floor.contains(p.offset(.right))) &&
             (!floor.contains(p.offset(.up)) || !floor.contains(p.offset(.down)))
         }
+    }
+
+    /// Shortest walking route. Walls and boxes are impassable; no push is planned.
+    func walkingPath(to destination: GridPoint) -> [MoveDirection]? {
+        guard floor.contains(destination), !state.boxes.contains(destination) else { return nil }
+        if destination == state.player { return [] }
+        var queue = [state.player], cursor = 0
+        var visited: Set<GridPoint> = [state.player]
+        var previous: [GridPoint: (GridPoint, MoveDirection)] = [:]
+        while cursor < queue.count {
+            let point = queue[cursor]; cursor += 1
+            for direction in MoveDirection.allCases {
+                let next = point.offset(direction)
+                guard floor.contains(next), !state.boxes.contains(next), visited.insert(next).inserted else { continue }
+                previous[next] = (point, direction)
+                if next == destination {
+                    var route: [MoveDirection] = [], step = destination
+                    while step != state.player {
+                        guard let (parent, direction) = previous[step] else { return nil }
+                        route.append(direction); step = parent
+                    }
+                    return route.reversed()
+                }
+                queue.append(next)
+            }
+        }
+        return nil
     }
 
     mutating func move(_ direction: MoveDirection) -> BoardMove? {

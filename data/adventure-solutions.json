@@ -1,0 +1,50 @@
+[
+  {
+    "id": "tutorial-1",
+    "solution": "rr",
+    "pushes": 2,
+    "states": 15
+  },
+  {
+    "id": "tutorial-2",
+    "solution": "LLuDRRRu",
+    "pushes": 2,
+    "states": 38
+  },
+  {
+    "id": "tutorial-3",
+    "solution": "DLLUURdRu",
+    "pushes": 2,
+    "states": 16
+  },
+  {
+    "id": "tutorial-4",
+    "solution": "UuDDRRRu",
+    "pushes": 2,
+    "states": 26
+  },
+  {
+    "id": "tutorial-6",
+    "solution": "LuuDRrDRuu",
+    "pushes": 5,
+    "states": 874
+  },
+  {
+    "id": "tutorial-7",
+    "solution": "LLuuLUrDDrr",
+    "pushes": 5,
+    "states": 495
+  },
+  {
+    "id": "tutorial-8",
+    "solution": "LLUuuDDRRuuRUULLDrLULLDr",
+    "pushes": 6,
+    "states": 2005
+  },
+  {
+    "id": "tutorial-11",
+    "solution": "LLLUuuRRRDDlDLLUURdLDrURRRuu",
+    "pushes": 7,
+    "states": 26715
+  }
+]

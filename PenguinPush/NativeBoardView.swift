@@ -12,6 +12,9 @@ struct NativeBoardView: UIViewRepresentable {
         view.presentScene(model.scene)
         let pinch = UIPinchGestureRecognizer(target: view, action: #selector(NativeSKView.pinch(_:)))
         view.addGestureRecognizer(pinch)
+        let pan = UIPanGestureRecognizer(target: view, action: #selector(NativeSKView.pan(_:)))
+        pan.minimumNumberOfTouches = 2; pan.maximumNumberOfTouches = 2
+        view.addGestureRecognizer(pan)
         DispatchQueue.main.async { view.becomeFirstResponder() }
         return view
     }
@@ -28,12 +31,16 @@ final class NativeSKView: SKView {
     override func layoutSubviews() {
         super.layoutSubviews()
         guard let scene = gameModel?.scene else { return }
+        let changed = scene.size != bounds.size || scene.safeInsets != safeAreaInsets
         scene.safeInsets = safeAreaInsets
         if scene.size != bounds.size { scene.size = bounds.size }
-        scene.layoutBoard()
+        if changed { scene.layoutBoard() }
     }
     @objc func pinch(_ gesture: UIPinchGestureRecognizer) {
         gameModel?.scene.magnify(by: gesture.scale); gesture.scale = 1
+    }
+    @objc func pan(_ gesture: UIPanGestureRecognizer) {
+        gameModel?.scene.panBoard(by: gesture.translation(in: self)); gesture.setTranslation(.zero, in: self)
     }
     override var keyCommands: [UIKeyCommand]? {
         [UIKeyCommand.inputUpArrow, UIKeyCommand.inputDownArrow, UIKeyCommand.inputLeftArrow, UIKeyCommand.inputRightArrow,
@@ -93,7 +100,7 @@ final class RepeatingArrow: UIControl {
     override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
         guard isEnabled else { return false }
         stop(); isHighlighted = true; onStep?()
-        let timer = Timer(timeInterval: 0.09, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.11, repeats: true) { [weak self] _ in
             guard let self = self, self.isEnabled else { return }
             self.onStep?()
         }

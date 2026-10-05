@@ -48,7 +48,7 @@ enum LegacySaveMigration {
     static func convert(_ data: Data, packs: [LevelPack]) -> SavedGame? {
         guard let legacy = try? JSONDecoder().decode(LegacySave.self, from: data),
               let pack = packs.first(where: { $0.id == legacy.pack }) ?? packs.first, !pack.levels.isEmpty else { return nil }
-        let index = min(pack.levels.count - 1, max(0, legacy.index ?? 0))
+        let index = legacy.pack == pack.id ? min(pack.levels.count - 1, max(0, legacy.index ?? 0)) : 0
         guard var board = try? SokobanBoard(level: pack.levels[index]) else { return nil }
         if let session = legacy.session?.native() { _ = board.restore(session) }
         return SavedGame(packID: pack.id, levelIndex: index, character: legacy.character == 1 ? 1 : 0,
